@@ -47,6 +47,7 @@ public class RouteMap {
     static NodeSet nst = new NodeSet();
     static HashMap<String, String[]> multisets = new HashMap<>();
     //defining all of the possible locations of transfer (i.e. at LEX42, one could transfer to the shuttle (SHUGRAND) or the 7 (FLUGRAND))
+    //transfers also include the time taken to walk the transfer from platform to platform
     static {
         lines = new Line[]{lexington, canarsie, eighth, seventh, sixth, broadway, flushing, shuttle};
         buildMaps();
@@ -110,7 +111,7 @@ public class RouteMap {
         multisets.put(placename, stations);
     }
 
-    //self explanatory, this prints out the route summary given 
+    //self explanatory, this prints out the route summary  
     static void printSummary() {
         System.out.println("===PRINTING ROUTE SUMMARY===");
         for (Line l : lines) {
@@ -138,6 +139,7 @@ public class RouteMap {
         printSummary();
         List<NodeSet.Node> path = pathfind("COOPER", "PENN");
         System.out.println(evalCost(path) + ":" + path);
+        //prints out getJSON (see line 170)
         System.out.println(getJSON("PENN", "COOPER"));
         System.out.println(getJSON("UNIONSQ", "FLUGRAND0"));
         NodeSet.costOverrides.put("BWY14R-BWY23R", 4000);
@@ -146,7 +148,7 @@ public class RouteMap {
         NodeSet.costOverrides.put("BWY14N-BWY34N", 4000);
         System.out.println(getJSON("BWY140", "BWY280"));
     }
-
+    //evaluating the cost in traversing from the source node to the destination node
     static List<NodeSet.Node> pathfind(String src, String dst) {
         String[] srcs = multisets.getOrDefault(src, new String[]{src});
         String[] dsts = multisets.getOrDefault(dst, new String[]{dst});
@@ -164,31 +166,37 @@ public class RouteMap {
         }
         return best;
     }
-
+   
     static String getJSON(String src, String dst) {
         try {
             dst = dst.trim();
             src = src.trim();
+            //this List can only have src nodes and dst nodes inserted into it
             List<NodeSet.Node> path = RouteMap.pathfind(src, dst);
             StringBuilder json = new StringBuilder();
             json.append("{\"result\":\"ok\", \"error\":\"\", \"path\" : [");
             ArrayList<String> elements = new ArrayList<>();
+            
             for (int i = 1; i < path.size(); i++) {
-
+                //constructing the segment of traversal by incrementing through the previous and current node until 
+                //one has traversed the length of the path
                 NodeSet.Node prev = path.get(i - 1);
                 NodeSet.Node cur = path.get(i);
                 elements.add(toSegment(prev, cur));
             }
             json.append(StringUtils.join(elements, ","));
             json.append("], \"instructions\": [");
+            //creating arraylist 'instructions'
             ArrayList<String> instructions = new ArrayList<>();
             String lastService = "";
             int stopCount = 0;
             int ptr = 0;
             boolean haveBoarded = false;
+            //increment ptr until ptr is greater than the size of the path
             while (ptr < path.size() && path.get(ptr).service.equals("0")) {
                 ptr++;
             }
+            //adding to the array list the specific instructions needed for the individual to get from src to dst
             instructions.add(String.format("\"Board the %s <span class=\\\"bullet %s\\\">%s</span> train at %s.\"",
                     resolveDirection(path.get(ptr), path.get(ptr + 1)),
                     "b"+path.get(ptr).stationRef.line.name.toLowerCase(),
@@ -216,6 +224,7 @@ public class RouteMap {
             json.append(StringUtils.join(instructions, ","));
 
             json.append("]}");
+            //converting json object to string
             return json.toString();
         } catch (Exception e) {
             return String.format("{\"result\":\"error\", \"error\":\"%s\"}",
@@ -223,7 +232,7 @@ public class RouteMap {
                             StringUtils.join(Arrays.stream(e.getStackTrace()).map(StackTraceElement::toString).toArray(), "//")));
         }
     }
-
+    //constructing convention given the relative positions of an src node and dst node and returns conventional names
     private static String resolveDirection(NodeSet.Node node, NodeSet.Node node2) {
         if (node.stationRef.line.name.equals("FLU")) {
             return (node.stationRef.ordinal < node2.stationRef.ordinal) ? "34 St Hudson Yards bound" : "Queens bound";
@@ -238,13 +247,16 @@ public class RouteMap {
 
     static String toSegment(NodeSet.Node prev, NodeSet.Node cur) {
         boolean rev = false;
+        //if there exists a previous station and a current station and theyre on the same line
         if (prev.stationRef != null && cur.stationRef != null && prev.stationRef.line == cur.stationRef.line) {
+            //if the origin of src station is greater than the origin of dst station, traverse each intermediate node
+            //until you have reached the location of the dst station
             if (prev.stationRef.ordinal > cur.stationRef.ordinal) {
                 NodeSet.Node temp = cur;
                 cur = prev;
                 prev = temp;
                 rev = true;
-            }
+            } 
         } else if (prev.stationRef != null && cur.stationRef != null) {
             if (prev.stationRef.line.name.compareTo(cur.stationRef.line.name) > 0) {
                 NodeSet.Node temp = cur;
@@ -254,7 +266,7 @@ public class RouteMap {
         }
         return "\"" + prev.name + "-" + cur.name + "-" + (cur.service.equals(prev.service) ? cur.service : "X") + (rev?"_\"":"\"");
     }
-
+    //evaluating the cost of a given src or dst since thos are the only instances that can be inserted into this list
     private static double evalCost(List<NodeSet.Node> candidate) {
         double sum = 0;
         for (int i = 1; i < candidate.size(); i++) {
@@ -262,7 +274,7 @@ public class RouteMap {
         }
         return sum;
     }
-
+    //transfer function, which was discussed above when all of the transfers were listed
     static void transfer(String st1, String st2, int time) {
         transferTimes.put(st1 + "-" + st2, time);
         transferTimes.put(st2 + "-" + st1, time);
@@ -277,7 +289,7 @@ public class RouteMap {
 
     static void buildNodeSet() {
         for (Line l : lines) {
-            // do a front to back walk.
+            // front to back walk
             HashSet<String> services = new HashSet<>();
             for (Station s : l.stations) {
                 for (String svc : s.routes) {
@@ -309,7 +321,7 @@ public class RouteMap {
                     }
                 }
             }
-        }
+        } //crossLinkStations described below
         for (Line l : lines) {
             for (Station s : l.stations) {
                 crossLinkStations(s, s);
@@ -339,7 +351,7 @@ public class RouteMap {
             }
         }
     }
-
+    //takes in two stations as its parameters and joins adjacent stations
     private static void crossLinkStations(Station s1, Station s2) {
         for (String sv1 : s1.routes) {
             for (String sv2 : s2.routes) {

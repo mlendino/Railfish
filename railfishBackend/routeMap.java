@@ -106,27 +106,30 @@ public class RouteMap {
         //printSummary();
     }
 
-
+    //assigns the value of string placename and stations
     private static void multiset(String placename, String... stations) {
         multisets.put(placename, stations);
     }
 
-    //self explanatory, this prints out the route summary  
+    
     static void printSummary() {
         System.out.println("===PRINTING ROUTE SUMMARY===");
         for (Line l : lines) {
+            //prints out name of line
             System.out.println(String.format("%s line:", l.name));
+            //prints out number of strops
             System.out.println(String.format("%d stop(s):", l.stations.length));
             for (Station s : l.stations) {
+                //printed out transfers and route info
                 System.out.println(String.format("* %s (%s)%s", s.name, StringUtils.join(s.routes, '•'),
                         s.transfers.isEmpty() ? "" : ", transfer to " + StringUtils.join(s.transfers.stream().map(t -> t.name).toArray(), ", ")));
             }
-
+            //newlines
             System.out.println();
             System.out.println();
         }
     }
-
+    //parsing through the array and putting the station name for each station on each line
     static void buildMaps() {
         for (Line l : lines) {
             for (Station s : l.stations) {
@@ -134,7 +137,7 @@ public class RouteMap {
             }
         }
     }
-
+    
     public static void main(String[] args) {
         printSummary();
         List<NodeSet.Node> path = pathfind("COOPER", "PENN");
@@ -197,6 +200,7 @@ public class RouteMap {
                 ptr++;
             }
             //adding to the array list the specific instructions needed for the individual to get from src to dst
+            //
             instructions.add(String.format("\"Board the %s <span class=\\\"bullet %s\\\">%s</span> train at %s.\"",
                     resolveDirection(path.get(ptr), path.get(ptr + 1)),
                     "b"+path.get(ptr).stationRef.line.name.toLowerCase(),
@@ -213,6 +217,8 @@ public class RouteMap {
                 lastService = path.get(ptr).service;
                 if(ptr<(path.size()-1)){
                     if(!path.get(ptr+1).service.equals("0")){
+                        //implementing resolveDirection with two elements ptr and ptr+1, the line name at ptr
+                        //and adding a 'b' in the front, the service and desc parameter of the element at address ptr
                         instructions.add(String.format("\"Transfer to the %s <span class=\\\"bullet %s\\\">%s</span> train at %s.\"",
                                 resolveDirection(path.get(ptr), path.get(ptr + 1)),
                                 "b"+path.get(ptr).stationRef.line.name.toLowerCase(),
@@ -227,6 +233,7 @@ public class RouteMap {
             //converting json object to string
             return json.toString();
         } catch (Exception e) {
+            //creating and formatting error messages
             return String.format("{\"result\":\"error\", \"error\":\"%s\"}",
                     StringEscapeUtils.escapeJavaScript(e.toString() + ":" + e.getMessage() + "//" +
                             StringUtils.join(Arrays.stream(e.getStackTrace()).map(StackTraceElement::toString).toArray(), "//")));
@@ -235,6 +242,7 @@ public class RouteMap {
     //constructing convention given the relative positions of an src node and dst node and returns conventional names
     private static String resolveDirection(NodeSet.Node node, NodeSet.Node node2) {
         if (node.stationRef.line.name.equals("FLU")) {
+            //returing the parameter of the node of the given station
             return (node.stationRef.ordinal < node2.stationRef.ordinal) ? "34 St Hudson Yards bound" : "Queens bound";
         } else if (node.stationRef.line.name.equals("SHU")) {
             return (node.stationRef.ordinal < node2.stationRef.ordinal) ? "Times Sq bound" : "Grand Central bound";
@@ -264,17 +272,19 @@ public class RouteMap {
                 prev = temp;
             }
         }
+        //combining everything into one statement for ease of access later on
         return "\"" + prev.name + "-" + cur.name + "-" + (cur.service.equals(prev.service) ? cur.service : "X") + (rev?"_\"":"\"");
     }
-    //evaluating the cost of a given src or dst since thos are the only instances that can be inserted into this list
+    //evaluating/adding the cost of a given src or dst since those are the only instances that can be inserted into this list
     private static double evalCost(List<NodeSet.Node> candidate) {
         double sum = 0;
         for (int i = 1; i < candidate.size(); i++) {
+            //constantly adding up the cost of each candidate and the previoous candidate to arrive at a cost
             sum += nst.calcCost(candidate.get(i - 1), candidate.get(i));
         }
         return sum;
     }
-    //transfer function, which was discussed above when all of the transfers were listed
+    //listing the times for transfer between two stations like at an airport
     static void transfer(String st1, String st2, int time) {
         transferTimes.put(st1 + "-" + st2, time);
         transferTimes.put(st2 + "-" + st1, time);
@@ -291,23 +301,36 @@ public class RouteMap {
         for (Line l : lines) {
             // front to back walk
             HashSet<String> services = new HashSet<>();
+            //for every station in a line of stations 
             for (Station s : l.stations) {
+                //and for every string svc in the station routes
                 for (String svc : s.routes) {
+                    //adding string svc to services
                     services.add(svc);
                 }
             }
+            //for every string in services
             for (String svc : services) {
                 System.err.println("Building the linkages for " + svc);
+                //emptying prev and cur nodes (we will assign them values below)
                 NodeSet.Node prev = null;
                 NodeSet.Node cur = null;
+                //for every station in the line of stations
                 for (Station s : l.stations) {
+                    //refer to other file for object and method declarations of anything not present
+                    //if theres a match for what the method stream returns, execute loop
                     if (Arrays.stream(s.routes).anyMatch(pSvc -> pSvc.equals(svc))) {
 
                         boolean isBMT = Character.isAlphabetic(svc.charAt(0));
+                        //setting values of previous and current nodes
                         prev = cur;
                         cur = new NodeSet.Node();
+                        //parameter nameAndService takes on the value of the station name and svc
+                        //this is done for every svc
                         cur.nameAndService = s.name + svc;
                         System.err.println("Storing " + cur.nameAndService);
+                        //copying the information from the s station, svc service, 
+                        //and setting the address equal to the current station 
                         cur.name = s.name;
                         cur.service = svc;
                         cur.stationRef = s;
@@ -337,12 +360,16 @@ public class RouteMap {
 
         for (Line l : lines) {
             for (Station s : l.stations) {
+                //going through every line in line and every station in station lines and creating a new node
+                //putting it into allNodes to organize so it can be called later
                 NodeSet.Node stationNode = new NodeSet.Node();
                 stationNode.name = s.name;
                 stationNode.service = "0";
                 stationNode.nameAndService = s.name + "0";
                 stationNode.stationRef = s;
                 nst.allNodes.put(s.name + "0", stationNode);
+                //calling already created node and placing it into neighbours and parameter nd
+                //adding new node to stationNode
                 for (String service : s.routes) {
                     NodeSet.Node nd = nst.allNodes.get(s.name + service);
                     nd.neighbours.add(stationNode);
@@ -353,6 +380,7 @@ public class RouteMap {
     }
     //takes in two stations as its parameters and joins adjacent stations
     private static void crossLinkStations(Station s1, Station s2) {
+        //goes through all the station 1 routes and all the station 2 routes and making them neighbours
         for (String sv1 : s1.routes) {
             for (String sv2 : s2.routes) {
                 NodeSet.Node n1 = nst.allNodes.get(s1.name + sv1);
